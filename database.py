@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DB_FILE = "chores.db"
 
@@ -11,18 +11,84 @@ def init_db():
     cursor = conn.cursor()
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS chores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        completed INTEGER NOT NULL DEFAULT 0,
-        completed_by TEXT,
-        completed_at TEXT
+        CREATE TABLE IF NOT EXISTS chores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0,
+            completed_by TEXT,
+            completed_at TEXT
                    )
                    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            meal_type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL
+             )
+        """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit TEXT NOT NULL,
+            location TEXT NOT NULL,
+            category TEXT NOT NULL,
+            added_date TEXT NOT NULL,
+            shelf_life_days INTEGER,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
 
+def add_meal(date, meal_type, content):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO meals (date, meal_type, content, created_at)
+        VALUES (?, ?, ?, ?)
+                   """, (
+                       date, 
+                       meal_type, 
+                       content, 
+                       datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    conn.commit()
+    conn.close()
+
+def get_meals_by_date(date):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, date, meal_type, content, created_at
+        FROM meals
+        WHERE date = ?
+        order by id desc
+                   """, (date,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+
+    meals = []
+    for row in rows:
+        meals.append({
+            "id": row[0],
+            "date": row[1],
+            "meal_type": row[2],
+            "content": row[3],
+            "created_at": row[4]
+        })
+
+    return meals
 
 def add_chore(title):
     conn = get_connection()
@@ -87,3 +153,76 @@ def undo_chore(chore_id):
 
     conn.commit()
     conn.close()
+
+
+def add_inventory_item(name, quantity, unit, location, category, added_date, shelf_life_days):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO inventory (name, quantity, unit, location, category, added_date, shelf_life_days, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   """, (
+                       name, 
+                       quantity, 
+                       unit, 
+                       location,
+                       category,
+                       added_date,
+                       shelf_life_days,
+                       datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    conn.commit()
+    conn.close()
+
+def get_all_inventory_items():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, name, quantity, unit, location, category, added_date, shelf_life_days, updated_at
+        FROM inventory
+        order by id desc
+                   """)
+    
+    rows = cursor.fetchall()
+    conn.close()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row[0],
+            "name": row[1],
+            "quantity": row[2],
+            "unit": row[3],
+            "location": row[4],
+            "category": row[5],
+            "added_date": row[6],
+            "shelf_life_days": row[7],
+            "updated_at": row[8]
+        })
+
+    return items
+
+def delete_inventory_item(item_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DELETE FROM inventory
+        WHERE id = ?
+                   """, (item_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def calculate_expiry(added_date, shelf_life_days):
+    if not shelf_life_days:
+        return None
+    
+    added = datetime.strptime(added_date, "%Y-%m-%d")
+    expiry = added + timedelta(days=shelf_life_days)
+    days_left = (expiry - datetime.now()).days
+
+    return expiry.strftime("%Y-%m-%d"), days_left
