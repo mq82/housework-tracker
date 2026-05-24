@@ -45,6 +45,18 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS supplement_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplement_name TEXT NOT NULL,
+            dosage REAL,
+            unit TEXT,
+            note TEXT,
+            taken_at TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -232,3 +244,123 @@ def update_inventory_quantity(item_id, new_quantity):
 
     conn.commit()
     conn.close()
+
+def add_supplement_log(supplement_name, dosage, unit, note):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute("""
+        INSERT INTO supplement_logs
+        (supplement_name, dosage, unit, note, taken_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+                   """, (
+                       supplement_name,
+                       dosage,
+                       unit,
+                       note,
+                       now,
+                       now
+                   ))
+
+    conn.commit()
+    conn.close()
+
+def get_recent_supplement_logs(limit=50):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, supplement_name, dosage, unit, note, taken_at, created_at
+        FROM supplement_logs
+        ORDER BY taken_at DESC
+        LIMIT ?
+                   """, (limit,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+
+    logs = []
+    for row in rows:
+        logs.append({
+            "id": row[0],
+            "supplement_name": row[1],
+            "dosage": row[2],
+            "unit": row[3],
+            "note": row[4] or "",
+            "taken_at": row[5],
+            "created_at": row[6]
+        })
+
+    return logs
+
+
+def delete_supplement_log(log_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DELETE FROM supplement_logs
+        WHERE id = ?
+                   """, (int(log_id),))
+    
+    deleted_count = cursor.rowcount
+
+    conn.commit()
+    conn.close()
+
+    return deleted_count
+
+def get_supplement_logs_by_date(date):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, supplement_name, dosage, unit, note, taken_at, created_at
+        FROM supplement_logs
+        WHERE substr(taken_at, 1, 10) = ?
+        ORDER BY taken_at DESC
+                   """, (date,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+
+    logs = []
+    for row in rows:
+        logs.append({
+            "id": row[0],
+            "supplement_name": row[1],
+            "dosage": row[2],
+            "unit": row[3],
+            "note": row[4] or "",
+            "taken_at": row[5],
+            "created_at": row[6]
+        })
+
+    return logs
+
+def get_supplement_daily_summary(date):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT supplement_name, unit, SUM(dosage)
+        FROM supplement_logs
+        WHERE substr(taken_at, 1, 10) = ?
+        GROUP BY supplement_name, unit
+        ORDER BY supplement_name
+                   """, (date,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+
+    summary = []
+    for row in rows:
+        summary.append({
+            "supplement_name": row[0],
+            "unit": row[1],
+            "total_dosage": row[2]
+        })
+
+    return summary

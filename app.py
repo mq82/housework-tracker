@@ -10,7 +10,12 @@ from database import (
     add_inventory_item,
     get_all_inventory_items,
     delete_inventory_item,
-    update_inventory_quantity
+    update_inventory_quantity,
+    add_supplement_log,
+    get_recent_supplement_logs,
+    delete_supplement_log,
+    get_supplement_logs_by_date,
+    get_supplement_daily_summary,
     )
 from datetime import datetime, timedelta
 
@@ -42,7 +47,7 @@ def get_inventory_sort_key(item):
 
 
 
-tab1, tab2, tab3 = st.tabs(["Chores", "Meals", "Inventory"])
+tab1, tab2, tab3, tab4 = st.tabs(["Chores", "Meals", "Inventory", "Supplements"])
 
 with tab1:
     st.header("Chores")
@@ -351,4 +356,124 @@ with tab3:
                     delete_inventory_item(item["id"])
                     st.rerun()
             
+            st.divider()
+
+
+
+with tab4:
+    st.header("Supplements Log")
+
+    st.caption("Record what you take at the current time. No manual date/time input.")
+
+    st.subheader("Add Supplement Log")
+
+    with st.form("add_supplement_form", clear_on_submit=True):
+        supplement_name = st.text_input(
+            "Supplement name",
+            placeholder="e.g. heme iron, magnesium, vitamin D",
+            key="supplement_name"
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            dosage = st.number_input(
+                "Dosage",
+                min_value=0.0,
+                step=1.0,
+                key="supplement_dosage"
+            )
+
+        with col2:
+            unit = st.selectbox(
+                "Unit",
+                [
+                    "capsule(s)",
+                    "tablet(s)",
+                    "drop(s)",
+                    "mg",
+                    "g",
+                    "IU",
+                    "mcg"
+                ],
+                key="supplement_unit"
+            )
+
+        note = st.text_area(
+            "Note",
+            placeholder="Optional: after lunch, felt dizzy, with food, etc.",
+            key="supplement_note"
+        )
+
+        submitted = st.form_submit_button("Add Log", use_container_width=True)
+
+        if submitted:
+            if supplement_name.strip():
+                add_supplement_log(
+                    supplement_name.strip(),
+                    dosage,
+                    unit,
+                    note.strip()
+                )
+                st.success("Supplement log added.")
+                st.rerun()
+            else:
+                st.warning("Please enter a supplement name.")
+
+    st.divider()
+
+    st.subheader("View by Date")
+
+    selected_supplement_date = st.date_input(
+        "Select date",
+        key="supplement_date"
+    )
+
+    selected_date_str = str(selected_supplement_date)
+
+    st.markdown(f"### Daily Summary - {selected_date_str}")
+
+    summary = get_supplement_daily_summary(selected_date_str)
+
+    if not summary:
+        st.caption("No supplements recorded on this date.")
+    else:
+        for item in summary:
+            st.markdown(f"- **{item['supplement_name']}**: {item['total_dosage']} {item['unit']}")
+    
+    st.divider()
+
+    st.markdown(f"### Logs - {selected_date_str}")
+
+    logs = get_supplement_logs_by_date(selected_date_str)
+
+    st.caption(f"Debug: {len(logs)} logs found for {selected_date_str}.")
+
+    if not logs:
+        st.caption("No supplement logs for this date.")
+    else:
+        for log in logs:
+            col1, col2 = st.columns([6,1.5])
+
+            with col1:
+                st.markdown(
+                    f"### {log['supplement_name']} - {log['dosage']} {log['unit']}"
+                )
+                st.caption(f"Taken at: {log['taken_at']}")
+                st.caption(f"Log ID: {log['id']}")
+                
+                if log["note"]:
+                    st.caption(f"Note: {log['note']}")
+
+            with col2:
+                deleted_clicked = st.button(
+                    "Delete",
+                    key = f"delete_log_{log['id']}",
+                    use_container_width=True
+                )
+                if deleted_clicked:
+                    deleted_count = delete_supplement_log(log["id"])
+                    st.success("Deleted one log.")
+                    st.rerun()
+        
             st.divider()
