@@ -163,70 +163,74 @@ with tab3:
     # -----------------------------
     st.subheader("Add Item")
 
-    col1, col2 = st.columns(2)
+    with st.form("add_inventory_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
 
-    with col1:
-        item_name = st.text_input("Item name", key="inv_name")
-        item_quantity = st.number_input(
-            "Quantity",
-            min_value=0.0,
-            step=1.0,
-            key="inv_qty"
-        )
-        item_unit = st.selectbox(
-            "Unit",
-            ["pcs", "box", "bag", "bottle","kg", "g", "L", "ml"],
-            key="inv_unit"
-        )
+        with col1:
+            item_name = st.text_input("Item name", key="inv_name")
+            item_quantity = st.number_input(
+               "Quantity",
+               min_value=0.0,
+               step=1.0,
+               key="inv_qty"
+            )
+            item_unit = st.selectbox(
+               "Unit",
+               ["pcs", "box", "bag", "bottle","kg", "g", "L", "ml"],
+               key="inv_unit"
+            )
 
-    with col2:
-        item_location = st.selectbox(
+        with col2:
+            item_location = st.selectbox(
             "Location",
             ["fridge", "freezer"],
             key="inv_location"
-        )
-        item_category = st.selectbox(
-            "Category", 
-            [
-                "vegetable",
-                "fruit",
-                "meat",
-                "seafood",
-                "grain",
-                "dairy",
-                "eggs",
-                "condiment",
-                "herb/spice",
-                "fermented",
-                "other"
-            ],
-            key="inv_category"
-        )
-        
-    added_date = st.date_input("Added date", key="inv_added_date")
-    
-    shelf_life = st.number_input(
-        "Shelf life (days)",
-        min_value=0,
-        step=1,
-        key="inv_shelf_life"
-    )
-
-    if st.button("Add Item", key="inv_add_btn", use_container_width=True):
-        if item_name.strip():
-            add_inventory_item(
-                item_name.strip(),
-                item_quantity,
-                item_unit,
-                item_location,
-                item_category,
-                str(added_date),
-                shelf_life if shelf_life > 0 else None,
             )
-            st.success("Item added to inventory.")
-            st.rerun()
-        else:
-            st.warning("Please enter an item name.")
+            item_category = st.selectbox(
+                "Category", 
+                [
+                    "vegetable",
+                    "fruit",
+                    "meat",
+                    "seafood",
+                    "grain",
+                    "dairy",
+                    "eggs",
+                    "condiment",
+                    "herb/spice",
+                    "fermented",
+                    "other"
+                ],
+                key="inv_category"
+            )
+        
+        added_date = st.date_input("Added date", key="inv_added_date")
+    
+        shelf_life = st.number_input(
+            "Shelf life (days)",
+            min_value=0,
+            step=1,
+            key="inv_shelf_life"
+        )
+        submitted = st.form_submit_button("Add Item", use_container_width=True)
+
+        if submitted:
+            if item_name.strip():
+                add_inventory_item(
+                    item_name.strip(),
+                    item_quantity,
+                    item_unit,
+                    item_location,
+                    item_category,
+                    str(added_date),
+                    shelf_life if shelf_life > 0 else None,
+                )
+                st.success("Item added to inventory.")
+                st.rerun()
+            else:
+                st.warning("Please enter an item name.")
+
+
     st.divider()
 
     # -----------------------------
@@ -299,7 +303,6 @@ with tab3:
         
         filtered_items.append(item)
 
-
     # -----------------------------
     # Display inventory
     # -----------------------------
@@ -329,6 +332,7 @@ with tab3:
                     st.caption("No shelf life set.")
                 
                 st.caption(f"Last updated at: {item['updated_at']}")
+                st.caption(f"Item ID: {item['id']}")
 
             with col2:
                 if st.button("-", key = f"minus_{item['id']}", use_container_width=True):
