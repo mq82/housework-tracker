@@ -1,6 +1,5 @@
 import streamlit as st
 from database import (
-    calculate_expiry,
     init_db, 
     add_chore, 
     get_all_chores, 
@@ -10,11 +9,38 @@ from database import (
     get_meals_by_date,
     add_inventory_item,
     get_all_inventory_items,
-    delete_inventory_item
+    delete_inventory_item,
+    update_inventory_quantity
     )
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Housework Tracker", page_icon="🧹", layout="centered")
 init_db()
+
+ # ------- 2 calculation functions -------
+
+def calculate_expiry(added_date, shelf_life_days):
+    if not shelf_life_days:
+        return None
+
+    added = datetime.strptime(added_date, "%Y-%m-%d")
+    expiry = added + timedelta(days=shelf_life_days)
+    days_left = (expiry.date() - datetime.now().date()).days
+
+    return expiry, days_left
+
+def get_inventory_sort_key(item):
+    expiry_info = calculate_expiry(item["added_date"], item["shelf_life_days"])
+    
+    if not expiry_info:
+        return 9999  #没有保质期的排最后
+    
+    _, days_left = expiry_info
+    return days_left
+
+
+
+
 
 tab1, tab2, tab3 = st.tabs(["Chores", "Meals", "Inventory"])
 
@@ -107,26 +133,84 @@ with tab2:
             st.divider()
 
 
+# -------- expiry calculation --------
+def calculate_expiry(added_date, shelf_life_days):
+    if not shelf_life_days:
+        return None
+    
+    added = datetime.strptime(added_date, "%Y-%m-%d")
+    expiry = added + timedelta(days=shelf_life_days)
+    days_left = (expiry.date() - datetime.now().date()).days
+
+    return expiry, days_left
+
+def get_sort_key(item):
+    expiry_info = calculate_expiry(item["added_date"], item["shelf_life_days"])
+
+    if not expiry_info:
+        return 9999
+    
+    _, days_left = expiry_info
+    return days_left
+
 
 with tab3:
+    # ====== Inventory Input ======
     st.header("Inventory")
+
+    # -----------------------------
+    # Add new inventory item
+    # -----------------------------
+    st.subheader("Add Item")
 
     col1, col2 = st.columns(2)
 
     with col1:
         item_name = st.text_input("Item name", key="inv_name")
-        item_quantity = st.number_input("Quantity", min_value=0.0, step=1.0, key="inv_qty")
-        item_unit = st.selectbox("Unit", ["pcs", "box", "bag", "bottle","kg", "g", "L", "ml"], key="inventory_unit")
+        item_quantity = st.number_input(
+            "Quantity",
+            min_value=0.0,
+            step=1.0,
+            key="inv_qty"
+        )
+        item_unit = st.selectbox(
+            "Unit",
+            ["pcs", "box", "bag", "bottle","kg", "g", "L", "ml"],
+            key="inv_unit"
+        )
 
     with col2:
-        item_location = st.selectbox("Location", ["fridge", "freezer"], key="inv_location")
+        item_location = st.selectbox(
+            "Location",
+            ["fridge", "freezer"],
+            key="inv_location"
+        )
         item_category = st.selectbox(
             "Category", 
-            ["vegetable", "fruit", "meat", "seafood", "grain", "dairy", "condiment", "fermented", "other"],
-            key="inv_category")
+            [
+                "vegetable",
+                "fruit",
+                "meat",
+                "seafood",
+                "grain",
+                "dairy",
+                "eggs",
+                "condiment",
+                "herb/spice",
+                "fermented",
+                "other"
+            ],
+            key="inv_category"
+        )
         
-    added_date = st.date_input("Added date", key="inv_date")
-    shelf_life = st.number_input("Shelf life (days)", min_value=0, step=1, key="inv_shelf")
+    added_date = st.date_input("Added date", key="inv_added_date")
+    
+    shelf_life = st.number_input(
+        "Shelf life (days)",
+        min_value=0,
+        step=1,
+        key="inv_shelf_life"
+    )
 
     if st.button("Add Item", key="inv_add_btn", use_container_width=True):
         if item_name.strip():
@@ -145,46 +229,122 @@ with tab3:
             st.warning("Please enter an item name.")
     st.divider()
 
+    # -----------------------------
+    # Inventory list
+    # -----------------------------
     st.subheader("Current Inventory")
 
+    # ===== Inventory Items Filtering and Sorting =====
+
     items = get_all_inventory_items()
+    items = sorted(items, key=get_inventory_sort_key)
 
-    #🔍 filter
-    filter_location = st.selectbox("Filter by location", ["all", "fridge", "freezer"], key="filter_loc")
+    # ===== filters =====
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
 
-    if filter_location != "all":
-        items = [i for i in items if i["location"] == filter_location]
-    
-    if not items:
+    with filter_col1:
+        filter_location = st.selectbox(
+            "Filter by location",
+            ["all", "fridge", "freezer"],
+            key="filter_location"
+        )
+
+    with filter_col2:
+        filter_category = st.selectbox(
+            "Filter by category",
+            [
+                "all",
+                "vegetable",
+                "fruit",
+                "meat",
+                "seafood",
+                "grain",
+                "dairy",
+                "eggs",
+                "condiment",
+                "herb/spice",
+                "fermented",
+                "other"
+            ],
+            key="filter_category"
+        )
+
+    with filter_col3:
+        filter_expiry = st.selectbox(
+            "Filter by status",
+            ["all", "expiring soon", "expired", "no shelf life"],
+            key="filter_expiry"
+        )
+
+    filtered_items = []
+
+    for item in items:
+        expiry_info = calculate_expiry(item["added_date"], item["shelf_life_days"])
+        
+        if filter_location != "all" and item["location"] != filter_location:
+            continue
+
+        if filter_category != "all" and item["category"] != filter_category:
+            continue
+
+        if filter_expiry == "expired":
+            if not expiry_info or expiry_info[1] >= 0:
+                continue
+        elif filter_expiry == "expiring soon":
+            if not expiry_info or not (0 <= expiry_info[1] <= 2):
+                continue
+        elif filter_expiry == "no shelf life":
+            if expiry_info:
+                continue
+        
+        filtered_items.append(item)
+
+
+    # -----------------------------
+    # Display inventory
+    # -----------------------------
+    if not filtered_items:
         st.caption("No items in inventory.")
     else:
-        for item in items:
+        for item in filtered_items:
             expiry_info = calculate_expiry(item["added_date"], item["shelf_life_days"])
 
-            col1, col2 = st.columns([6,1.5])
+            col1, col2, col3, col4 = st.columns([5, 1, 1, 1.5])
 
             with col1:
                 st.markdown(f"### {item['name']} - {item['quantity']} {item['unit']}")
-                st.caption(
-                    f"Location: {item['location']} | "
-                    f"Category: {item['category']} | "
-                    f"Added at: {item['added_date']}"
-                )
+                st.caption(f"{item['location']} | {item['category']} | Added at: {item['added_date']}")
                 
                 if expiry_info:
                     expiry, days_left = expiry_info
-                    st.caption(f"Expiry date: {expiry}")
+                    expiry_date = expiry.strftime("%Y-%m-%d")
 
                     if days_left < 0:
-                        st.error(f"Expired {-days_left} days ago ❕")
+                        st.error(f"Expired {-days_left} days ago ❕ | Expiry date: {expiry_date}")
                     elif days_left <= 2:
-                        st.warning(f"Expiring in {days_left} days ⚠️")
+                        st.warning(f"Expiring in {days_left} days ⚠️ | Expiry date: {expiry_date}")
                     else:
-                        st.caption(f"Expires in {days_left} days")
+                        st.caption(f"Expires in {days_left} days | Expiry date: {expiry_date}")
+                else:
+                    st.caption("No shelf life set.")
+                
+                st.caption(f"Last updated at: {item['updated_at']}")
 
             with col2:
+                if st.button("-", key = f"minus_{item['id']}", use_container_width=True):
+                    new_quantity = max(0, item["quantity"] - 1)
+                    update_inventory_quantity(item["id"], new_quantity)
+                    st.rerun()
+
+            with col3:
+                if st.button("+", key = f"plus_{item['id']}", use_container_width=True):
+                    new_quantity = item["quantity"] + 1
+                    update_inventory_quantity(item["id"], new_quantity)
+                    st.rerun()
+            
+            with col4:
                 if st.button("Delete", key = f"delete_{item['id']}", use_container_width=True):
                     delete_inventory_item(item["id"])
                     st.rerun()
-
+            
             st.divider()

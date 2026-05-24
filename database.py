@@ -216,13 +216,19 @@ def delete_inventory_item(item_id):
     conn.commit()
     conn.close()
 
+def update_inventory_quantity(item_id, new_quantity):
+    conn = get_connection()
+    cursor = conn.cursor()
 
-def calculate_expiry(added_date, shelf_life_days):
-    if not shelf_life_days:
-        return None
-    
-    added = datetime.strptime(added_date, "%Y-%m-%d")
-    expiry = added + timedelta(days=shelf_life_days)
-    days_left = (expiry - datetime.now()).days
+    cursor.execute("""
+        UPDATE inventory
+        SET quantity = ?,
+            updated_at = ?
+        WHERE id = ?
+                   """, (
+                       new_quantity,
+                       datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                       item_id))
 
-    return expiry.strftime("%Y-%m-%d"), days_left
+    conn.commit()
+    conn.close()
