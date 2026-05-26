@@ -1,7 +1,15 @@
 import sqlite3
 from datetime import datetime, timedelta
 
+import streamlit as st
+from supabase import create_client
+
 DB_FILE = "chores.db"
+@st.cache_resource
+def get_supabase_client():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
 
 def get_connection():
     return sqlite3.connect(DB_FILE)
@@ -246,26 +254,16 @@ def update_inventory_quantity(item_id, new_quantity):
     conn.close()
 
 def add_supplement_log(supplement_name, dosage, unit, note):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    result = supabase.table("supplement_logs").insert({
+        "supplement_name": supplement_name,
+        "dosage": dosage,
+        "unit": unit,
+        "note": note,
+    }).execute()
 
-    cursor.execute("""
-        INSERT INTO supplement_logs
-        (supplement_name, dosage, unit, note, taken_at, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-                   """, (
-                       supplement_name,
-                       dosage,
-                       unit,
-                       note,
-                       now,
-                       now
-                   ))
-
-    conn.commit()
-    conn.close()
+    return result
 
 def get_recent_supplement_logs(limit=50):
     conn = get_connection()
@@ -295,72 +293,77 @@ def get_recent_supplement_logs(limit=50):
 
     return logs
 
-
 def delete_supplement_log(log_id):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        DELETE FROM supplement_logs
-        WHERE id = ?
-                   """, (int(log_id),))
+    existing = (
+        supabase
+        .table("supplement_logs")
+        .select("id")
+        .eq("id", int(log_id))
+        .execute()
+    )
+
+    if not existing.data:
+        return 0
     
-    deleted_count = cursor.rowcount
+    supabase.table("supplement_logs").delete().eq("id", int(log_id)).execute()
 
-    conn.commit()
-    conn.close()
+    return 1
 
-    return deleted_count
 
 def get_supplement_logs_by_date(date):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        SELECT id, supplement_name, dosage, unit, note, taken_at, created_at
-        FROM supplement_logs
-        WHERE substr(taken_at, 1, 10) = ?
-        ORDER BY taken_at DESC
-                   """, (date,))
-    
-    rows = cursor.fetchall()
-    conn.close()
+    start_time = f"{date}T00:00:00"
+    end_time = f"{date}T23:59:59"
+
+    result = (
+        supabase
+        .table("supplement_logs")
+        .select("*")
+        .gte("taken_at", start_time)
+        .lte("taken_at", end_time)
+        .order("taken_at", desc=True)
+        .execute()
+    )
 
     logs = []
-    for row in rows:
+    for row in result.data:
         logs.append({
-            "id": row[0],
-            "supplement_name": row[1],
-            "dosage": row[2],
-            "unit": row[3],
-            "note": row[4] or "",
-            "taken_at": row[5],
-            "created_at": row[6]
+            "id": row["id"],
+            "supplement_name": row["supplement_name"],
+            "dosage": row["dosage"],
+            "unit": row["unit"],
+            "note": row.get("note") or "",
+            "taken_at": row["taken_at"],
+            "created_at": row["created_at"]
         })
 
     return logs
 
 def get_supplement_daily_summary(date):
-    conn = get_connection()
-    cursor = conn.cursor()
+    logs = get_supplement_logs_by_date(date)
 
-    cursor.execute("""
-        SELECT supplement_name, unit, SUM(dosage)
-        FROM supplement_logs
-        WHERE substr(taken_at, 1, 10) = ?
-        GROUP BY supplement_name, unit
-        ORDER BY supplement_name
-                   """, (date,))
-    
-    rows = cursor.fetchall()
-    conn.close()
+    summary_map = {}
+
+    for log in logs:
+        key = (log["supplement_name"], log["unit"])
+
+        if key not in summary_map:
+            summary_map[key] = 0
+
+        summary_map[key] += float(log["dosage"] or 0)
 
     summary = []
-    for row in rows:
+
+    for (supplement_name, unit), total_dosage in summary_map.items():
         summary.append({
-            "supplement_name": row[0],
-            "unit": row[1],
-            "total_dosage": row[2]
+            "supplement_name": supplement_name,
+            "total_dosage": total_dosage,
+            "unit": unit
         })
+
+    summary.sort(key=lambda x: x["supplement_name"])
 
     return summary

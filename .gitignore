@@ -5,3 +5,4 @@ chores.db
 app_v2.py
 check_db.py
 chores.json
+.streamlit/secrets.toml
