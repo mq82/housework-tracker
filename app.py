@@ -18,11 +18,43 @@ from database import (
     )
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Housework Tracker", page_icon="🧹", layout="centered")
+# ------- 1 database functions -------
+def check_password():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if st.session_state["authenticated"]:
+        return True
+    
+    st.title("🔐 Home App Login")
+
+    password = st.text_input(
+        "Enter password",
+        type="password",
+        key="app_password_input"
+    )
+
+    if st.button("Login", use_container_width=True):
+        if password == st.secrets["APP_PASSWORD"]:
+            st.session_state["authenticated"] = True
+            st.success("Login successful!")
+            st.rerun()
+        else:
+            st.error("Incorrect password. Please try again.")
+
+    return False
+
+
+st.set_page_config(page_title="Home App", page_icon="🏠", layout="centered")
+
+if not check_password():
+    st.stop()
+
 init_db()
 
- # ------- 2 calculation functions -------
+st.title("🏠 Home App")
 
+# ------- 2 calculation functions -------
 def calculate_expiry(added_date, shelf_life_days):
     if not shelf_life_days:
         return None
@@ -44,7 +76,7 @@ def get_inventory_sort_key(item):
 
 
 
-
+# ------- 3 UI and tab functions -------
 
 tab1, tab2, tab3, tab4 = st.tabs(["Chores", "Meals", "Inventory", "Supplements"])
 
