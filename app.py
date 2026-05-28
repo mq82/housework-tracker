@@ -12,7 +12,6 @@ from database import (
     delete_inventory_item,
     update_inventory_quantity,
     add_supplement_log,
-    get_recent_supplement_logs,
     delete_supplement_log,
     get_supplement_logs_by_date,
     get_supplement_daily_summary,

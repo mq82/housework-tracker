@@ -1,11 +1,16 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import streamlit as st
 from supabase import create_client
 
 DB_FILE = "chores.db"
+
+
+# database connection and initialization
+
 @st.cache_resource
+
 def get_supabase_client():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
@@ -68,190 +73,209 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+
+
+# application functions
+
+# tab1 - meals
+
 def add_meal(date, meal_type, content):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        INSERT INTO meals (date, meal_type, content, created_at)
-        VALUES (?, ?, ?, ?)
-                   """, (
-                       date, 
-                       meal_type, 
-                       content, 
-                       datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    result = supabase.table("meals").insert({
+        "date": date,
+        "meal_type": meal_type,
+        "content": content,
+    }).execute()
 
-    conn.commit()
-    conn.close()
+    return result
 
 def get_meals_by_date(date):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        SELECT id, date, meal_type, content, created_at
-        FROM meals
-        WHERE date = ?
-        order by id desc
-                   """, (date,))
-    
-    rows = cursor.fetchall()
-    conn.close()
+    result = (
+        supabase
+        .table("meals")
+        .select("*")
+        .eq("date", date)
+        .order("id", desc=True)
+        .execute()
+    )
 
     meals = []
-    for row in rows:
+    
+    for row in result.data:
         meals.append({
-            "id": row[0],
-            "date": row[1],
-            "meal_type": row[2],
-            "content": row[3],
-            "created_at": row[4]
+            "id": row["id"],
+            "date": row["date"],
+            "meal_type": row["meal_type"],
+            "content": row["content"],
+            "created_at": row["created_at"]
         })
 
     return meals
 
+
+
+
+# tab2 - chores
+
 def add_chore(title):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        INSERT INTO chores (title, created_at, completed, completed_by, completed_at)
-        VALUES (?, ?, 0, '', '')
-                   """, (title, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    result = supabase.table("chores").insert({
+        "title": title,
+        "completed": False,
+        "completed_by": None,
+        "completed_at": None,
+    }).execute()
 
-    conn.commit()
-    conn.close()
+    return result
 
 def get_all_chores():
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        SELECT id, title, created_at, completed, completed_by, completed_at
-        FROM chores
-        order by id desc
-                   """)
-    
-    rows = cursor.fetchall()
-    conn.close()
+    result = (
+        supabase
+        .table("chores")
+        .select("*")
+        .order("id", desc=True)
+        .execute()
+    )
 
     chores = []
-    for row in rows:
+    for row in result.data:
         chores.append({
-            "id": row[0],
-            "title": row[1],
-            "created_at": row[2],
-            "completed": bool(row[3]),
-            "completed_by": row[4] or "",
-            "completed_at": row[5] or ""
+            "id": row["id"],
+            "title": row["title"],
+            "created_at": row["created_at"],
+            "completed": bool(row["completed"]),
+            "completed_by": row["completed_by"] or "",
+            "completed_at": row["completed_at"] or ""
         })
 
     return chores
 
-def complete_chore(chore_id, completed_by):
-    conn = get_connection()
-    cursor = conn.cursor()
+def complete_chore(chore_id, user_name):
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        UPDATE chores
-        SET completed = 1, completed_by = ?, completed_at = ?
-        WHERE id = ?
-                   """, (completed_by, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), chore_id))
+    result = (
+        supabase
+        .table("chores")
+        .update({
+            "completed": True,
+            "completed_by": user_name,
+            "completed_at": datetime.now().isoformat()
+        })
+        .eq("id", int(chore_id))
+        .execute()
+    )
 
-    conn.commit()
-    conn.close()
+    return result
 
 def undo_chore(chore_id):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        UPDATE chores
-        SET completed = 0, completed_by = '', completed_at = ''
-        WHERE id = ?
-                   """, (chore_id,))
+    result = (
+        supabase
+        .table("chores")
+        .update({
+            "completed": False,
+            "completed_by": None,
+            "completed_at": None,
+        })
+        .eq("id", int(chore_id))
+        .execute()
+    )
 
-    conn.commit()
-    conn.close()
+    return result
 
+
+
+
+# tab3 - refrige inventory
 
 def add_inventory_item(name, quantity, unit, location, category, added_date, shelf_life_days):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        INSERT INTO inventory (name, quantity, unit, location, category, added_date, shelf_life_days, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                   """, (
-                       name, 
-                       quantity, 
-                       unit, 
-                       location,
-                       category,
-                       added_date,
-                       shelf_life_days,
-                       datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    result = supabase.table("inventory").insert({
+        "name": name,
+        "quantity": quantity,
+        "unit": unit,
+        "location": location,
+        "category": category,
+        "added_date": added_date,
+        "shelf_life_days": shelf_life_days,
+    }).execute()
 
-    conn.commit()
-    conn.close()
+    return result
 
 def get_all_inventory_items():
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        SELECT id, name, quantity, unit, location, category, added_date, shelf_life_days, updated_at
-        FROM inventory
-        order by id desc
-                   """)
-    
-    rows = cursor.fetchall()
-    conn.close()
+    result = (
+        supabase
+        .table("inventory")
+        .select("*")
+        .order("id", desc=True)
+        .execute()
+    )
 
     items = []
-    for row in rows:
+
+    for row in result.data:
         items.append({
-            "id": row[0],
-            "name": row[1],
-            "quantity": row[2],
-            "unit": row[3],
-            "location": row[4],
-            "category": row[5],
-            "added_date": row[6],
-            "shelf_life_days": row[7],
-            "updated_at": row[8]
+            "id": row["id"],
+            "name": row["name"],
+            "quantity": float(row["quantity"] or 0),
+            "unit": row["unit"],
+            "location": row.get("location") or "",
+            "category": row.get("category") or "",
+            "added_date": row.get("added_date") or "",
+            "shelf_life_days": row.get("shelf_life_days"),
+            "updated_at": row.get("updated_at") or "",
         })
 
     return items
 
 def delete_inventory_item(item_id):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        DELETE FROM inventory
-        WHERE id = ?
-                   """, (item_id,))
+    existing = (
+        supabase
+        .table("inventory")
+        .select("id")
+        .eq("id", int(item_id))
+        .execute()
+    )
 
-    conn.commit()
-    conn.close()
+    if not existing.data:
+        return 0
+
+    supabase.table("inventory").delete().eq("id", int(item_id)).execute()
+
+    return 1
 
 def update_inventory_quantity(item_id, new_quantity):
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute("""
-        UPDATE inventory
-        SET quantity = ?,
-            updated_at = ?
-        WHERE id = ?
-                   """, (
-                       new_quantity,
-                       datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                       item_id))
+    result = (
+        supabase
+        .table("inventory")
+        .update({
+            "quantity": new_quantity,
+            "updated_at": datetime.now().isoformat(),
+        })
+        .eq("id", int(item_id))
+        .execute()
+    )
 
-    conn.commit()
-    conn.close()
+    return result
+
+
+
+# tab4 - supplement logs
 
 def add_supplement_log(supplement_name, dosage, unit, note):
     supabase = get_supabase_client()
@@ -265,7 +289,7 @@ def add_supplement_log(supplement_name, dosage, unit, note):
 
     return result
 
-def get_recent_supplement_logs(limit=50):
+# def get_recent_supplement_logs(limit=50):
     conn = get_connection()
     cursor = conn.cursor()
 
