@@ -92,14 +92,22 @@ with tab1:
 
     st.divider()
 
-    st.subheader("Add a new chore")
-    new_title = st.text_input("What needs to be done?", label_visibility="collapsed", placeholder="Enter a chore...")
+    with st.form("add_chore_form", clear_on_submit=True):
+        new_title = st.text_input(
+            "What needs to be done?",
+            key="new_chore"
+        )
 
-    if st.button("Add chore", use_container_width=True):
-        if new_title.strip():
-            add_chore(new_title.strip())
-            st.success("Chore added.")
-            st.rerun()
+        submitted = st.form_submit_button(
+            "Add Chore",
+            use_container_width=True
+        )
+        
+        if submitted:
+            if new_title.strip():
+                add_chore(new_title.strip())
+                st.success("Chore added.")
+                st.rerun()      
         else:
             st.warning("Please enter a chore title.")
 
@@ -150,18 +158,37 @@ with tab1:
 with tab2:
     st.header("Meals")
 
-    selected_date = st.date_input("Select date", key="meal_date")
-    meal_type = st.selectbox("Meal type", ["Breakfast", "Lunch", "Dinner"], key = "meal_type")
-    meal_content = st.text_input("What to eat?", key = "meal_content")
+    with st.form("add_meal_form", clear_on_submit=True):
+        selected_date = st.date_input(
+            "Date",
+            key="meal_date"
+            )
+        
+        meal_type = st.selectbox(
+            "Meal type",
+            ["Breakfast", "Lunch", "Dinner"],
+            key = "meal_type"
+            )
+        
+        meal_content = st.text_input(
+            "What to eat?",
+            key = "meal_content"
+        )
 
-    if st.button("Add Meal", key = "add_meal_btn", use_container_width=True):
-        if meal_content.strip():
-            add_meal(str(selected_date), meal_type, meal_content.strip())
-            st.rerun()
-        else:
-            st.warning("Please enter meal content.")
+        submitted = st.form_submit_button(
+            "Add Meal",
+            use_container_width=True
+        )
 
-    st.subheader("Meals for seleccted date")
+        if submitted:
+            if meal_content.strip():
+                add_meal(str(selected_date), meal_type, meal_content.strip())
+                st.success("Meal added.")
+                st.rerun()
+            else:
+                st.warning("Please enter meal content.")
+
+    st.subheader("Meals for selected date")
     meals = get_meals_by_date(str(selected_date))
 
     if not meals:
