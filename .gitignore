@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 chores.db
+backup_files/
 app_v2.py
 check_db.py
-chores.json
 .streamlit/secrets.toml

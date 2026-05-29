@@ -20,58 +20,7 @@ def get_connection():
     return sqlite3.connect(DB_FILE)
 
 def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS chores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            completed INTEGER NOT NULL DEFAULT 0,
-            completed_by TEXT,
-            completed_at TEXT
-                   )
-                   """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS meals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            meal_type TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT NOT NULL
-             )
-        """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS inventory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            quantity REAL NOT NULL,
-            unit TEXT NOT NULL,
-            location TEXT NOT NULL,
-            category TEXT NOT NULL,
-            added_date TEXT NOT NULL,
-            shelf_life_days INTEGER,
-            updated_at TEXT NOT NULL
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS supplement_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            supplement_name TEXT NOT NULL,
-            dosage REAL,
-            unit TEXT,
-            note TEXT,
-            taken_at TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )
-    """)
-
-    conn.commit()
-    conn.close()
+    pass
 
 
 

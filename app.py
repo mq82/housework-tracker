@@ -20,8 +20,12 @@ from datetime import datetime, timedelta
 
 # ------- 1 database functions -------
 def check_password():
+    if "APP_PASSWORD" not in st.secrets:
+        st.error("APP_PASSWORD is not configured in Streamlit Secrets.")
+        st.stop()
+    
     if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
+        st.session_state["authenticated"] = False
 
     if st.session_state["authenticated"]:
         return True
