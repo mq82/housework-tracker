@@ -158,11 +158,13 @@ with tab1:
 with tab2:
     st.header("Meals")
 
+    st.subheader("Add Meal")
+
     with st.form("add_meal_form", clear_on_submit=True):
-        selected_date = st.date_input(
-            "Date",
-            key="meal_date"
-            )
+        add_meal_date = st.date_input(
+            "Meal date",
+            key="meal_add_date"
+        )
         
         meal_type = st.selectbox(
             "Meal type",
@@ -182,14 +184,25 @@ with tab2:
 
         if submitted:
             if meal_content.strip():
-                add_meal(str(selected_date), meal_type, meal_content.strip())
+                add_meal(str(add_meal_date), meal_type, meal_content.strip())
+                st.session_state["meal_view_date"] = add_meal_date
                 st.success("Meal added.")
                 st.rerun()
             else:
                 st.warning("Please enter meal content.")
 
-    st.subheader("Meals for selected date")
-    meals = get_meals_by_date(str(selected_date))
+    st.divider()
+
+    st.subheader("View Meals by Date")
+
+    view_meal_date = st.date_input(
+        "View date",
+        key="meal_view_date"
+    )
+
+    meals = get_meals_by_date(str(view_meal_date))
+
+    st.markdown(f"### Meals for {view_meal_date}")
 
     if not meals:
         st.caption("No meals recoreded yet.")

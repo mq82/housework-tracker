@@ -1,11 +1,13 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 from supabase import create_client
 
 DB_FILE = "chores.db"
 
+BJ_TZ = ZoneInfo("Asia/Shanghai")
 
 # database connection and initialization
 
@@ -15,6 +17,30 @@ def get_supabase_client():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
+
+def now_bj_iso():
+    return datetime.now(BJ_TZ).isoformat()
+
+def format_bj_time(value):
+    if not value:
+        return ""
+    
+    dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(BJ_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+def beijing_day_utc_range(date_str):
+    start_bj = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=BJ_TZ)
+    end_bj = start_bj + timedelta(days=1)
+
+    start_utc = start_bj.astimezone(timezone.utc).isoformat()
+    end_utc = end_bj.astimezone(timezone.utc).isoformat()
+
+    return start_utc, end_utc
+
 
 def get_connection():
     return sqlite3.connect(DB_FILE)
@@ -36,6 +62,7 @@ def add_meal(date, meal_type, content):
         "date": date,
         "meal_type": meal_type,
         "content": content,
+        "created_at": now_bj_iso(),
     }).execute()
 
     return result
@@ -60,7 +87,7 @@ def get_meals_by_date(date):
             "date": row["date"],
             "meal_type": row["meal_type"],
             "content": row["content"],
-            "created_at": row["created_at"]
+            "created_at": format_bj_time(row["created_at"]),
         })
 
     return meals
@@ -75,6 +102,7 @@ def add_chore(title):
 
     result = supabase.table("chores").insert({
         "title": title,
+        "created_at": now_bj_iso(),
         "completed": False,
         "completed_by": None,
         "completed_at": None,
@@ -98,10 +126,10 @@ def get_all_chores():
         chores.append({
             "id": row["id"],
             "title": row["title"],
-            "created_at": row["created_at"],
+            "created_at": format_bj_time(row["created_at"]),
             "completed": bool(row["completed"]),
             "completed_by": row["completed_by"] or "",
-            "completed_at": row["completed_at"] or ""
+            "completed_at": format_bj_time(row["completed_at"]),
         })
 
     return chores
@@ -115,7 +143,7 @@ def complete_chore(chore_id, user_name):
         .update({
             "completed": True,
             "completed_by": user_name,
-            "completed_at": datetime.now().isoformat()
+            "completed_at": now_bj_iso(),
         })
         .eq("id", int(chore_id))
         .execute()
@@ -156,6 +184,7 @@ def add_inventory_item(name, quantity, unit, location, category, added_date, she
         "category": category,
         "added_date": added_date,
         "shelf_life_days": shelf_life_days,
+        "updated_at": now_bj_iso(),
     }).execute()
 
     return result
@@ -183,7 +212,7 @@ def get_all_inventory_items():
             "category": row.get("category") or "",
             "added_date": row.get("added_date") or "",
             "shelf_life_days": row.get("shelf_life_days"),
-            "updated_at": row.get("updated_at") or "",
+            "updated_at": format_bj_time(row["updated_at"]),
         })
 
     return items
@@ -214,7 +243,7 @@ def update_inventory_quantity(item_id, new_quantity):
         .table("inventory")
         .update({
             "quantity": new_quantity,
-            "updated_at": datetime.now().isoformat(),
+            "updated_at": now_bj_iso(),
         })
         .eq("id", int(item_id))
         .execute()
@@ -229,11 +258,15 @@ def update_inventory_quantity(item_id, new_quantity):
 def add_supplement_log(supplement_name, dosage, unit, note):
     supabase = get_supabase_client()
 
+    now_iso = now_bj_iso()
+
     result = supabase.table("supplement_logs").insert({
         "supplement_name": supplement_name,
         "dosage": dosage,
         "unit": unit,
         "note": note,
+        "taken_at": now,
+        "created_at": now,
     }).execute()
 
     return result
@@ -288,20 +321,20 @@ def delete_supplement_log(log_id):
 def get_supplement_logs_by_date(date):
     supabase = get_supabase_client()
 
-    start_time = f"{date}T00:00:00"
-    end_time = f"{date}T23:59:59"
+    start_time, end_time = beijing_day_utc_range(date)
 
     result = (
         supabase
         .table("supplement_logs")
         .select("*")
         .gte("taken_at", start_time)
-        .lte("taken_at", end_time)
+        .lt("taken_at", end_time)
         .order("taken_at", desc=True)
         .execute()
     )
 
     logs = []
+
     for row in result.data:
         logs.append({
             "id": row["id"],
@@ -309,8 +342,8 @@ def get_supplement_logs_by_date(date):
             "dosage": row["dosage"],
             "unit": row["unit"],
             "note": row.get("note") or "",
-            "taken_at": row["taken_at"],
-            "created_at": row["created_at"]
+            "taken_at": format_bj_time(row["taken_at"]),
+            "created_at": format_bj_time(row["created_at"]),
         })
 
     return logs
