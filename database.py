@@ -258,7 +258,7 @@ def update_inventory_quantity(item_id, new_quantity):
 def add_supplement_log(supplement_name, dosage, unit, note):
     supabase = get_supabase_client()
 
-    now_iso = now_bj_iso()
+    now = now_bj_iso()
 
     result = supabase.table("supplement_logs").insert({
         "supplement_name": supplement_name,
